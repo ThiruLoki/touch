@@ -87,3 +87,9 @@ dialog h2 { margin-top: 0; }
 .actions { display: flex; gap: 8px; align-items: center; margin-top: 10px; flex-wrap: wrap; }
 .grow { flex: 1; }
 [hidden] { display: none !important; }
+
+/* home picture for the pendant */
+.photo-row { display: flex; gap: 12px; align-items: flex-end; margin-top: 8px; }
+.photo-row canvas { width: 68px; height: 120px; border-radius: 10px; background: #000; flex: none; }
+.photo-row .actions { margin-top: 0; }
+label.button { margin: 0; cursor: pointer; }

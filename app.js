@@ -1,6 +1,6 @@
 // The phone screen: send touches, edit the preset messages, see what came in.
 import {
-  COLORS, DEFAULT_PRESETS, EMOJI, MAX_PRESETS, PROFILE, VIBES, VIBE_MS,
+  COLORS, DEFAULT_PRESETS, EMOJI, MAX_PRESETS, PHOTO_H, PHOTO_MAX_BYTES, PHOTO_W, PROFILE, VIBES, VIBE_MS,
   adoptInviteFromUrl, clipText, connect, identity, inviteCode, parseInvite, store, timeAgo,
 } from './shared.js'
 
@@ -196,12 +196,77 @@ $('editToggle').addEventListener('click', () => {
   renderPresets()
 })
 
+// ---------------------------------------------------------------- home picture for my pendant
+// The chosen picture is cut to the screen's shape from its middle, made small, and published for the pendant.
+const jpegBytes = (canvas, quality) =>
+  new Promise((resolve) => canvas.toBlob(async (blob) => resolve(blob ? new Uint8Array(await blob.arrayBuffer()) : null), 'image/jpeg', quality))
+
+async function loadPicture(file) {
+  try {
+    return await createImageBitmap(file, { imageOrientation: 'from-image' })      // turns phone photos upright
+  } catch {
+    const img = new Image()
+    img.src = URL.createObjectURL(file)
+    await img.decode()
+    return img
+  }
+}
+
+function showPhotoPreview() {
+  const saved = store.get('photo', '')
+  $('photoPreview').hidden = !saved
+  $('photoRemove').hidden = !saved
+  if (!saved) return
+  const img = new Image()
+  img.onload = () => $('photoPreview').getContext('2d').drawImage(img, 0, 0)
+  img.src = saved
+}
+
+$('photoFile').addEventListener('change', async (ev) => {
+  const file = ev.target.files[0]
+  ev.target.value = ''
+  if (!file) return
+  if (!link) return toast('Not connected yet')
+  try {
+    const pic = await loadPicture(file)
+    const canvas = $('photoPreview')
+    const scale = Math.max(PHOTO_W / pic.width, PHOTO_H / pic.height)
+    const w = pic.width * scale, h = pic.height * scale
+    const g = canvas.getContext('2d')
+    g.imageSmoothingQuality = 'high'
+    g.fillStyle = '#000'
+    g.fillRect(0, 0, PHOTO_W, PHOTO_H)
+    g.drawImage(pic, (PHOTO_W - w) / 2, (PHOTO_H - h) / 2, w, h)
+    let jpeg = null
+    for (const q of [0.88, 0.8, 0.7, 0.6, 0.5]) {
+      jpeg = await jpegBytes(canvas, q)
+      if (jpeg && jpeg.length <= PHOTO_MAX_BYTES) break
+    }
+    if (!jpeg || jpeg.length > PHOTO_MAX_BYTES) return toast('That picture could not be made small enough')
+    link.publishPhoto(jpeg)
+    store.set('photo', canvas.toDataURL('image/jpeg', 0.8))
+    showPhotoPreview()
+    toast('Picture sent to your pendant')
+  } catch {
+    toast('That picture could not be opened')
+  }
+})
+
+$('photoRemove').addEventListener('click', () => {
+  if (!link) return toast('Not connected yet')
+  link.removePhoto()
+  store.set('photo', null)
+  showPhotoPreview()
+  toast('Picture removed')
+})
+
 // ---------------------------------------------------------------- settings + setup
 const profileQuery = PROFILE === 'me' ? '' : `?profile=${encodeURIComponent(PROFILE)}`
 $('openSettings').addEventListener('click', () => {
   $('setName').value = store.get('name', '')
   $('simLink').href = `pendant.html${profileQuery}`
   $('bridgeLink').href = bridgeLink()
+  showPhotoPreview()
   $('settings').showModal()
 })
 $('settings').addEventListener('close', () => {

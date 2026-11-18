@@ -6,6 +6,9 @@ export const VIBE_MS = [[150], [90, 110, 90], [600], [80, 120, 80, 420, 80, 120,
 export const COLORS = ['#FF5E7E', '#FF9A5C', '#FFC93C', '#4CD17A', '#35C2C1', '#4C8DFF', '#9B6BFF', '#F2F2F2']
 export const MAX_TEXT = 24
 export const MAX_PRESETS = 8
+export const PHOTO_W = 135            // the pendant's screen
+export const PHOTO_H = 240
+export const PHOTO_MAX_BYTES = 20000  // the pendant takes up to 24000
 export const DEFAULT_PRESETS = [
   { text: 'Thinking of you', emoji: 0, color: '#FF5E7E', vibe: 3 },
   { text: 'Miss you', emoji: 1, color: '#9B6BFF', vibe: 1 },
@@ -99,7 +102,7 @@ export async function connect(kind, cfg, handlers) {
     })
   }
   const base = `tp/${cfg.k}`
-  const topics = { touch: `${base}/touch`, presets: `${base}/presets/`, presence: `${base}/presence/` }
+  const topics = { touch: `${base}/touch`, presets: `${base}/presets/`, presence: `${base}/presence/`, photo: `${base}/photo/`, photoData: `${base}/photodata/` }
   const seen = new Set()
   const url = cfg.w || `${location.protocol === 'https:' ? 'wss' : 'ws'}://${location.host}/mqtt`
   const client = mqtt.connect(url, {
@@ -142,6 +145,17 @@ export async function connect(kind, cfg, handlers) {
     /** Publish my preset list so my pendant (Wi-Fi or via the Android bridge) picks it up. */
     publishPresets(list) {
       client.publish(topics.presets + me, JSON.stringify(list), { qos: 1, retain: true })
+    },
+    /** Home picture for my pendant: jpeg is a Uint8Array (135 x 240, baseline). The picture goes first, then the note that names it. */
+    publishPhoto(jpeg) {
+      const id = hex(4)
+      client.publish(topics.photoData + me, jpeg, { qos: 1, retain: true })
+      client.publish(topics.photo + me, JSON.stringify({ id, size: jpeg.length }), { qos: 1, retain: true })
+      return id
+    },
+    removePhoto() {
+      client.publish(topics.photo + me, '{}', { qos: 1, retain: true })
+      client.publish(topics.photoData + me, '', { qos: 1, retain: true })      // an empty retained message clears the stored one
     },
     end() {
       if (kind === 'pendant') client.publish(topics.presence + me, '0', { qos: 1, retain: true })

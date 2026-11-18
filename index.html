@@ -82,6 +82,16 @@
       <div class="field">Invite for your partner
         <div class="actions"><button id="copyInvite" type="button">Copy invite link</button></div>
       </div>
+      <div class="field">Picture on your pendant's home screen
+        <div class="photo-row">
+          <canvas id="photoPreview" width="135" height="240" hidden></canvas>
+          <div class="actions">
+            <label class="button">Choose picture<input id="photoFile" type="file" accept="image/*" hidden></label>
+            <button id="photoRemove" type="button" hidden>Remove</button>
+          </div>
+        </div>
+        <small class="hint">The middle of the picture is used, upright. A press on the pendant shows your messages.</small>
+      </div>
       <div class="field">Pendant over Bluetooth (Android only)
         <div class="actions">
           <a id="bridgeLink" class="button">Connect Android Bluetooth bridge</a>
