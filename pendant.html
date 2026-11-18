@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Pendant simulator</title>
+  <style>
+    :root { --bg: #e9eaee; --ink: #22252c; --muted: #6b7180; }
+    @media (prefers-color-scheme: dark) { :root { --bg: #15161a; --ink: #eceef3; --muted: #9aa0ae; } }
+    body { margin: 0; background: var(--bg); color: var(--ink); font: 15px/1.4 system-ui, sans-serif; display: grid; place-items: center; min-height: 100vh; }
+    .wrap { text-align: center; padding: 16px; }
+    .who { color: var(--muted); margin-bottom: 14px; }
+    .device { position: relative; width: 192px; margin: 0 auto; }
+    .body { width: 192px; height: 384px; background: #2b2d33; border-radius: 24px; padding: 20px 28px 0; box-shadow: 0 24px 40px -22px rgba(0, 0, 0, 0.6), inset 0 0 0 2px #3a3d45; }
+    canvas { width: 135px; height: 240px; border-radius: 6px; background: #000; display: block; margin: 0 auto; box-shadow: 0 0 0 3px #111; }
+    #front { margin-top: 26px; width: 96px; height: 26px; border-radius: 13px; border: 0; background: #2f8cff; cursor: pointer; box-shadow: 0 2px 0 #1b5fb8; }
+    #front:active { transform: translateY(2px); box-shadow: none; }
+    #side { position: absolute; left: -9px; top: 150px; width: 9px; height: 74px; border: 0; border-radius: 5px 0 0 5px; background: #3c3f47; cursor: pointer; }
+    #side:active { left: -6px; }
+    .keys { color: var(--muted); font-size: 13px; margin-top: 16px; max-width: 260px; }
+    .state { margin-top: 8px; font-size: 13px; color: var(--muted); }
+    .buzz { animation: buzz 0.07s linear infinite; }
+    @keyframes buzz { 0% { transform: translate(-2px, 1px) rotate(-0.6deg); } 50% { transform: translate(2px, -1px) rotate(0.6deg); } 100% { transform: translate(-2px, 1px) rotate(-0.6deg); } }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="who" id="who">Pendant simulator</div>
+    <div class="device" id="device">
+      <button id="side" aria-label="Side button: next message"></button>
+      <div class="body">
+        <canvas id="lcd" width="270" height="480"></canvas>
+        <button id="front" aria-label="Front button: send"></button>
+      </div>
+    </div>
+    <div class="keys">Blue front button = send (or dismiss a message). Side button = next message.</div>
+    <div class="state" id="state">connecting…</div>
+  </div>
+  <script src="vendor/mqtt.min.js"></script>
+  <script type="module" src="pendant.js"></script>
+</body>
+</html>

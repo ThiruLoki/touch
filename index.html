@@ -1,0 +1,105 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#fff6f3">
+  <title>Touch</title>
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png">
+  <link rel="apple-touch-icon" href="icons/icon-180.png">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="Touch">
+  <meta name="robots" content="noindex">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header class="bar">
+    <h1>Touch</h1>
+    <span id="status" class="chip off">Offline</span>
+    <button id="openSettings" class="icon" aria-label="Settings">&#9881;</button>
+  </header>
+
+  <main>
+    <section id="setup" hidden>
+      <h2>Set up</h2>
+      <p class="hint">Enter your name and paste the invite from your partner (or from the relay).</p>
+      <label>Your name <input id="setupName" maxlength="16" autocomplete="given-name" placeholder="e.g. Thiru"></label>
+      <label>Invite <textarea id="setupInvite" rows="3" placeholder="tp1:... or the invite link"></textarea></label>
+      <p id="setupError" class="error" hidden></p>
+      <button id="setupGo" class="primary">Start</button>
+    </section>
+
+    <section id="home" hidden>
+      <div id="incoming" class="incoming" hidden>
+        <div class="big" id="incomingEmoji"></div>
+        <div class="msg" id="incomingText"></div>
+        <div class="from" id="incomingFrom"></div>
+      </div>
+
+      <div class="pills">
+        <span class="pill"><i id="dotPartner" class="dot"></i> <span id="lblPartner">Partner's pendant</span></span>
+        <span class="pill"><i id="dotMine" class="dot"></i> Your pendant</span>
+      </div>
+
+      <div class="row">
+        <h2>Send a touch</h2>
+        <button id="editToggle" class="link">Edit</button>
+      </div>
+      <div id="presets" class="grid"></div>
+
+      <h2>Recent</h2>
+      <ul id="history" class="history"></ul>
+      <p id="historyEmpty" class="hint">Nothing yet. Tap a card above to send your first touch.</p>
+    </section>
+  </main>
+
+  <footer class="foot">Made with love · TS</footer>
+
+  <div id="toast" class="toast" hidden></div>
+
+  <dialog id="editor">
+    <form method="dialog">
+      <h2>Edit message</h2>
+      <label>Text <input id="edText" maxlength="24"></label>
+      <div class="field">Emoji<div id="edEmoji" class="choices"></div></div>
+      <div class="field">Colour<div id="edColor" class="choices"></div></div>
+      <label>Vibration <select id="edVibe"></select></label>
+      <div class="actions">
+        <button id="edDelete" type="button" class="danger">Delete</button>
+        <span class="grow"></span>
+        <button id="edCancel" type="button">Cancel</button>
+        <button id="edSave" value="save" class="primary">Save</button>
+      </div>
+    </form>
+  </dialog>
+
+  <dialog id="settings">
+    <form method="dialog">
+      <h2>Settings</h2>
+      <label>Your name <input id="setName" maxlength="16"></label>
+      <div class="field">Invite for your partner
+        <div class="actions"><button id="copyInvite" type="button">Copy invite link</button></div>
+      </div>
+      <div class="field">Pendant over Bluetooth (Android only)
+        <div class="actions">
+          <a id="bridgeLink" class="button">Connect Android Bluetooth bridge</a>
+          <button id="copyBridge" type="button">Copy bridge link</button>
+        </div>
+      </div>
+      <div class="field">Pendant without the hardware
+        <div class="actions"><a id="simLink" class="button" target="_blank" rel="noopener">Open pendant simulator</a></div>
+      </div>
+      <div class="actions">
+        <button id="resetAll" type="button" class="danger">Leave this pair</button>
+        <span class="grow"></span>
+        <button value="close" class="primary">Done</button>
+      </div>
+    </form>
+  </dialog>
+
+  <script src="vendor/mqtt.min.js"></script>
+  <script type="module" src="app.js"></script>
+</body>
+</html>
