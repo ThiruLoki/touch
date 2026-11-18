@@ -67,6 +67,8 @@ export function adoptInviteFromUrl() {
     store.set('relay', cfg)
     const name = location.hash.match(/[#&]name=([^&]+)/)          // optional: ...#invite=<code>&name=Thiru skips the setup screen
     if (name && !store.get('name', '')) store.set('name', decodeURIComponent(name[1]).slice(0, 16))
+    const person = location.hash.match(/[#&]me=([0-9a-f]{8})(?:&|$)/)   // optional: ...&me=<id> makes this phone that person (the id their pendant uses)
+    if (person) store.set('person', person[1])
     history.replaceState(null, '', location.pathname + location.search)
   }
   return store.get('relay', null)
