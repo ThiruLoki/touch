@@ -1,5 +1,6 @@
 // Shared by the web app (index.html) and the simulated pendant (pendant.html). See ../PROTOCOL.md.
 /* global mqtt */
+import { buildVoice, parseVoice } from './voice.js'
 export const EMOJI = ['❤️', '😘', '🤗', '😊', '😂', '☕', '🍚', '🏠', '🌙', '☀️', '👍', '🙏']
 export const VIBES = ['Short', 'Double', 'Long', 'Heartbeat']
 export const VIBE_MS = [[150], [90, 110, 90], [600], [80, 120, 80, 420, 80, 120, 80]]   // on, off, on, ...
@@ -85,7 +86,8 @@ export function clipText(text) {
 
 /**
  * One MQTT connection for this page. kind is 'web' or 'pendant'.
- * handlers: onState('online'|'offline'|'error', detail), onTouch(touch, mine), onPresets(person, list), onPresence(person, online)
+ * handlers: onState('online'|'offline'|'error', detail), onTouch(touch, mine), onPresets(person, list), onPresence(person, online),
+ * onVoice(note, mine) with note = { from, id, ts, pendant, name, audio, seconds } (see voice.js)
  */
 export async function connect(kind, cfg, handlers) {
   const me = identity()
@@ -102,7 +104,7 @@ export async function connect(kind, cfg, handlers) {
     })
   }
   const base = `tp/${cfg.k}`
-  const topics = { touch: `${base}/touch`, presets: `${base}/presets/`, presence: `${base}/presence/`, photo: `${base}/photo/`, photoData: `${base}/photodata/` }
+  const topics = { touch: `${base}/touch`, presets: `${base}/presets/`, presence: `${base}/presence/`, photo: `${base}/photo/`, photoData: `${base}/photodata/`, voice: `${base}/voice` }
   const seen = new Set()
   const url = cfg.w || `${location.protocol === 'https:' ? 'wss' : 'ws'}://${location.host}/mqtt`
   const client = mqtt.connect(url, {
@@ -111,12 +113,20 @@ export async function connect(kind, cfg, handlers) {
   })
   client.on('connect', () => {
     client.subscribe([topics.touch, topics.presets + '+', topics.presence + '+'], { qos: 1 })
+    if (handlers.onVoice) client.subscribe(topics.voice, { qos: 1 })
     if (kind === 'pendant') client.publish(topics.presence + me, '1', { qos: 1, retain: true })
     handlers.onState?.('online')
   })
   client.on('close', () => handlers.onState?.('offline'))
   client.on('error', (e) => handlers.onState?.('error', e.message))
   client.on('message', (topic, payload) => {
+    if (topic === topics.voice) {                 // bytes, not text
+      const note = parseVoice(payload)
+      if (!note || seen.has('voice' + note.id)) return
+      seen.add('voice' + note.id)
+      handlers.onVoice?.({ ...note, audio: Uint8Array.from(note.audio) }, note.from === me)
+      return
+    }
     const text = payload.toString()
     try {
       if (topic === topics.touch) {
@@ -152,6 +162,10 @@ export async function connect(kind, cfg, handlers) {
       client.publish(topics.photoData + me, jpeg, { qos: 1, retain: true })
       client.publish(topics.photo + me, JSON.stringify({ id, size: jpeg.length }), { qos: 1, retain: true })
       return id
+    },
+    /** A voice note for my partner: samples is an Int16Array at 8000 per second (see voice.js). */
+    publishVoice(samples) {
+      client.publish(topics.voice, buildVoice({ from: me, name: store.get('name', ''), samples }), { qos: 1 })
     },
     removePhoto() {
       client.publish(topics.photo + me, '{}', { qos: 1, retain: true })

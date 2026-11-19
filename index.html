@@ -36,6 +36,7 @@
         <div class="big" id="incomingEmoji"></div>
         <div class="msg" id="incomingText"></div>
         <div class="from" id="incomingFrom"></div>
+        <button id="incomingPlay" type="button" hidden>&#9654; Play</button>
       </div>
 
       <div class="pills">
@@ -49,9 +50,34 @@
       </div>
       <div id="presets" class="grid"></div>
 
+      <h2>Send a voice note</h2>
+      <div class="card">
+        <button id="voiceRec" type="button" class="round" aria-label="Record a voice note">&#127908;</button>
+        <div class="grow">
+          <b id="voiceTitle">Tap to record</b>
+          <small id="voiceHint" class="hint">Up to 10 seconds. Your partner's pendant buzzes and plays it when they press its side button.</small>
+          <div id="voiceBar" class="meter" hidden><i></i></div>
+        </div>
+        <button id="voiceCancel" type="button" hidden>Cancel</button>
+      </div>
+
+      <h2>Picture on your pendant</h2>
+      <div class="card">
+        <label class="thumb" aria-label="Choose a picture">
+          <canvas id="photoPreview" width="135" height="240" hidden></canvas>
+          <span id="photoEmpty">+</span>
+          <input id="photoFile" type="file" accept="image/*" hidden>
+        </label>
+        <div class="grow">
+          <b id="photoTitle">No picture yet</b>
+          <small class="hint">Tap the frame to choose one. The middle of the picture is used, upright.</small>
+          <div class="actions"><button id="photoRemove" type="button" hidden>Remove picture</button></div>
+        </div>
+      </div>
+
       <h2>Recent</h2>
       <ul id="history" class="history"></ul>
-      <p id="historyEmpty" class="hint">Nothing yet. Tap a card above to send your first touch.</p>
+      <p id="historyEmpty" class="hint">Nothing yet. Tap a message above to send your first touch.</p>
     </section>
   </main>
 
@@ -81,16 +107,6 @@
       <label>Your name <input id="setName" maxlength="16"></label>
       <div class="field">Invite for your partner
         <div class="actions"><button id="copyInvite" type="button">Copy invite link</button></div>
-      </div>
-      <div class="field">Picture on your pendant's home screen
-        <div class="photo-row">
-          <canvas id="photoPreview" width="135" height="240" hidden></canvas>
-          <div class="actions">
-            <label class="button">Choose picture<input id="photoFile" type="file" accept="image/*" hidden></label>
-            <button id="photoRemove" type="button" hidden>Remove</button>
-          </div>
-        </div>
-        <small class="hint">The middle of the picture is used, upright. A press on the pendant shows your messages.</small>
       </div>
       <div class="field">Pendant over Bluetooth (Android only)
         <div class="actions">

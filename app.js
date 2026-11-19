@@ -3,6 +3,7 @@ import {
   COLORS, DEFAULT_PRESETS, EMOJI, MAX_PRESETS, PHOTO_H, PHOTO_MAX_BYTES, PHOTO_W, PROFILE, VIBES, VIBE_MS,
   adoptInviteFromUrl, clipText, connect, identity, inviteCode, parseInvite, store, timeAgo,
 } from './shared.js'
+import { VOICE_MAX_SECONDS, VOICE_RATE, adpcmDecode, toVoiceSamples } from './voice.js'
 
 const $ = (id) => document.getElementById(id)
 const ink = (hex) => {
@@ -71,18 +72,27 @@ function renderHistory() {
     const li = document.createElement('li')
     const sw = document.createElement('span')
     sw.className = 'sw'
-    sw.style.background = h.color
-    sw.textContent = EMOJI[h.emoji] ?? ''
+    sw.style.background = h.voice ? 'var(--line)' : h.color
+    sw.textContent = h.voice ? MIC : EMOJI[h.emoji] ?? ''
     const what = document.createElement('span')
     what.className = 'what'
     const b = document.createElement('b')
-    b.textContent = h.text
+    b.textContent = h.voice ? `Voice note, ${Math.max(1, Math.round(h.seconds))} s` : h.text
     const small = document.createElement('small')
     small.textContent = h.mine ? `You sent${h.via === 'pendant' ? ' from your pendant' : ''}` : `From ${h.name || 'your partner'}`
     what.append(b, small)
     const time = document.createElement('time')
     time.textContent = timeAgo(h.ts)
-    li.append(sw, what, time)
+    li.append(sw, what)
+    if (h.voice && h.audio) {                     // only the newest few keep their sound
+      const play = document.createElement('button')
+      play.className = 'play'
+      play.textContent = '\u25B6'
+      play.setAttribute('aria-label', 'Play this voice note')
+      play.addEventListener('click', () => playVoice(h.audio))
+      li.append(play)
+    }
+    li.append(time)
     ul.append(li)
   }
   $('historyEmpty').hidden = history.length > 0
@@ -90,6 +100,7 @@ function renderHistory() {
 
 function showIncoming(t) {
   const box = $('incoming')
+  $('incomingPlay').hidden = true
   box.hidden = false
   box.style.background = t.color
   box.style.color = ink(t.color)
@@ -104,6 +115,119 @@ function showIncoming(t) {
   } catch { /* not supported on iPhone */ }
 }
 
+// ---------------------------------------------------------------- voice notes
+const MIC = '\u{1F3A4}'
+const KEEP_SOUND = 8                              // this many voice notes keep their sound on this phone
+const toB64 = (bytes) => btoa(Array.from(bytes, (b) => String.fromCharCode(b)).join(''))
+const fromB64 = (text) => Uint8Array.from(atob(text), (c) => c.charCodeAt(0))
+let audio = null                                  // made on the first tap: phones only allow sound after one
+let playing = null
+let rec = null                                    // the recording in progress: { recorder, started, cancelled, timer }
+function audioContext() {
+  audio ||= new (window.AudioContext || window.webkitAudioContext)()
+  if (audio.state === 'suspended') audio.resume()
+  return audio
+}
+
+function playVoice(b64) {
+  const ctx = audioContext()
+  const pcm = adpcmDecode(fromB64(b64))
+  const up = 6                                    // 8000 -> 48000 per second: some phones refuse to play 8000 directly
+  const buffer = ctx.createBuffer(1, pcm.length * up, VOICE_RATE * up)
+  const out = buffer.getChannelData(0)
+  for (let i = 0; i < pcm.length; i++) {
+    const a = pcm[i] / 32768, b = (pcm[i + 1] ?? pcm[i]) / 32768
+    for (let k = 0; k < up; k++) out[i * up + k] = a + ((b - a) * k) / up
+  }
+  try { playing?.stop() } catch { /* already over */ }
+  playing = ctx.createBufferSource()
+  playing.buffer = buffer
+  playing.connect(ctx.destination)
+  playing.start()
+}
+
+function showVoice(note) {
+  const box = $('incoming')
+  box.hidden = false
+  box.style.background = 'var(--accent)'
+  box.style.color = '#ffffff'
+  box.style.animation = 'none'
+  void box.offsetWidth
+  box.style.animation = ''
+  $('incomingEmoji').textContent = MIC
+  $('incomingText').textContent = `Voice note, ${Math.max(1, Math.round(note.seconds))} s`
+  $('incomingFrom').textContent = `from ${note.name || 'your partner'}`
+  $('incomingPlay').hidden = false
+  $('incomingPlay').onclick = () => playVoice(toB64(note.audio))
+  try {
+    navigator.vibrate?.(VIBE_MS[3])
+  } catch { /* not supported on iPhone */ }
+}
+
+function renderVoice() {
+  const on = !!rec
+  const seconds = on ? (Date.now() - rec.started) / 1000 : 0
+  $('voiceRec').classList.toggle('live', on)
+  $('voiceRec').textContent = on ? '\u2191' : MIC
+  $('voiceRec').setAttribute('aria-label', on ? 'Send the voice note' : 'Record a voice note')
+  $('voiceTitle').textContent = on ? `Recording ${Math.floor(seconds)} s \u00B7 tap to send` : 'Tap to record'
+  $('voiceHint').hidden = on
+  $('voiceBar').hidden = !on
+  $('voiceBar').firstElementChild.style.width = `${Math.min(100, (seconds / VOICE_MAX_SECONDS) * 100)}%`
+  $('voiceCancel').hidden = !on
+}
+
+async function startRecording() {
+  if (!link) return toast('Not connected yet')
+  if (!navigator.mediaDevices?.getUserMedia || !window.MediaRecorder) return toast('This browser cannot record sound')
+  const ctx = audioContext()
+  let stream
+  try {
+    stream = await navigator.mediaDevices.getUserMedia({ audio: { channelCount: 1, echoCancellation: true, noiseSuppression: true } })
+  } catch {
+    return toast('Allow the microphone for this page, then try again')
+  }
+  const recorder = new MediaRecorder(stream)
+  const chunks = []
+  const mine = { recorder, started: Date.now(), cancelled: false, timer: 0 }
+  recorder.ondataavailable = (e) => e.data.size && chunks.push(e.data)
+  recorder.onstop = async () => {
+    stream.getTracks().forEach((t) => t.stop())
+    clearInterval(mine.timer)
+    rec = null
+    renderVoice()
+    if (mine.cancelled) return
+    try {
+      const bytes = await new Blob(chunks, { type: recorder.mimeType }).arrayBuffer()
+      const sound = await new Promise((resolve, reject) => ctx.decodeAudioData(bytes, resolve, reject))
+      const samples = toVoiceSamples(sound.getChannelData(0), sound.sampleRate)
+      if (samples.length < VOICE_RATE * 0.4) return toast('That was too short')
+      if (!link) return toast('Not connected yet')
+      link.publishVoice(samples)
+      toast('Sending voice note')
+    } catch {
+      toast('The recording could not be read')
+    }
+  }
+  recorder.start()
+  rec = mine
+  mine.timer = setInterval(() => {
+    renderVoice()
+    if (Date.now() - mine.started >= VOICE_MAX_SECONDS * 1000 && recorder.state === 'recording') recorder.stop()
+  }, 200)
+  renderVoice()
+}
+
+$('voiceRec').addEventListener('click', () => {
+  if (rec) rec.recorder.stop()
+  else startRecording()
+})
+$('voiceCancel').addEventListener('click', () => {
+  if (!rec) return
+  rec.cancelled = true
+  rec.recorder.stop()
+})
+
 // ---------------------------------------------------------------- relay
 function sendPreset(p) {
   if (!link) return toast('Not connected yet')
@@ -116,6 +240,7 @@ async function start() {
   $('home').hidden = false
   renderPresets()
   renderHistory()
+  showPhotoPreview()
   $('lblPartner').textContent = partner.name ? `${partner.name}'s pendant` : "Partner's pendant"
   link = await connect('web', relay, {
     onState(state, detail) {
@@ -137,6 +262,20 @@ async function start() {
         $('lblPartner').textContent = partner.name ? `${partner.name}'s pendant` : "Partner's pendant"
       }
       showIncoming(t)
+    },
+    onVoice(note, mine) {
+      history.unshift({ voice: true, seconds: note.seconds, audio: toB64(note.audio), name: note.name, ts: note.ts || Math.floor(Date.now() / 1000), via: note.pendant ? 'pendant' : 'web', mine })
+      history = history.slice(0, 50)
+      history.filter((h) => h.voice).slice(KEEP_SOUND).forEach((h) => delete h.audio)
+      store.set('history', history)
+      renderHistory()
+      if (mine) return toast('Voice note sent')
+      if (note.from !== partner.id || (note.name && note.name !== partner.name)) {
+        partner = { id: note.from, name: note.name || partner.name }
+        store.set('partner', partner)
+        $('lblPartner').textContent = partner.name ? `${partner.name}'s pendant` : "Partner's pendant"
+      }
+      showVoice(note)
     },
     onPresence(person, online) {
       $(person === me ? 'dotMine' : 'dotPartner').classList.toggle('on', online)
@@ -215,7 +354,9 @@ async function loadPicture(file) {
 function showPhotoPreview() {
   const saved = store.get('photo', '')
   $('photoPreview').hidden = !saved
+  $('photoEmpty').hidden = !!saved
   $('photoRemove').hidden = !saved
+  $('photoTitle').textContent = saved ? 'This is on your pendant' : 'No picture yet'
   if (!saved) return
   const img = new Image()
   img.onload = () => $('photoPreview').getContext('2d').drawImage(img, 0, 0)
@@ -266,7 +407,6 @@ $('openSettings').addEventListener('click', () => {
   $('setName').value = store.get('name', '')
   $('simLink').href = `pendant.html${profileQuery}`
   $('bridgeLink').href = bridgeLink()
-  showPhotoPreview()
   $('settings').showModal()
 })
 $('settings').addEventListener('close', () => {
